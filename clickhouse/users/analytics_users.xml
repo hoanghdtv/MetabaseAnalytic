@@ -1,0 +1,51 @@
+<clickhouse>
+    <users>
+        <!-- analytics user – full access to analytics database -->
+        <analytics>
+            <!-- Plain text password is set via environment variable CLICKHOUSE_PASSWORD -->
+            <!-- The env var approach handles this automatically; this file just sets quotas/roles -->
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>analytics_profile</profile>
+            <quota>analytics_quota</quota>
+            <access_management>0</access_management>
+        </analytics>
+
+        <!-- readonly user for Metabase read-only dashboards -->
+        <analytics_reader>
+            <password>reader_secret</password>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>readonly</profile>
+            <quota>analytics_quota</quota>
+        </analytics_reader>
+    </users>
+
+    <profiles>
+        <analytics_profile>
+            <max_memory_usage>10000000000</max_memory_usage>
+            <use_uncompressed_cache>0</use_uncompressed_cache>
+            <load_balancing>random</load_balancing>
+            <max_execution_time>60</max_execution_time>
+        </analytics_profile>
+        <readonly>
+            <readonly>1</readonly>
+            <max_execution_time>30</max_execution_time>
+        </readonly>
+    </profiles>
+
+    <quotas>
+        <analytics_quota>
+            <interval>
+                <duration>3600</duration>
+                <queries>0</queries>
+                <errors>0</errors>
+                <result_rows>0</result_rows>
+                <read_rows>0</read_rows>
+                <execution_time>0</execution_time>
+            </interval>
+        </analytics_quota>
+    </quotas>
+</clickhouse>

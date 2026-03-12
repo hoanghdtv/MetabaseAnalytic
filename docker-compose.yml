@@ -1,0 +1,115 @@
+version: "3.9"
+
+services:
+  # ─────────────────────────────────────────────
+  # ClickHouse – OLAP database
+  # ─────────────────────────────────────────────
+  clickhouse:
+    image: clickhouse/clickhouse-server:${CLICKHOUSE_VERSION:-24.3}
+    container_name: analytics_clickhouse
+    restart: unless-stopped
+    ports:
+      - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"   # HTTP interface
+      - "${CLICKHOUSE_NATIVE_PORT:-9000}:9000" # Native TCP interface
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-analytics}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-analytics}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-analytics_secret}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      - ./clickhouse/config:/etc/clickhouse-server/config.d
+      - ./clickhouse/users:/etc/clickhouse-server/users.d
+      - ./clickhouse/initdb:/docker-entrypoint-initdb.d
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - analytics_net
+
+  # ─────────────────────────────────────────────
+  # PostgreSQL – Metabase metadata store
+  # ─────────────────────────────────────────────
+  metabase_db:
+    image: postgres:${POSTGRES_VERSION:-16-alpine}
+    container_name: analytics_metabase_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${MB_DB_DBNAME:-metabase}
+      POSTGRES_USER: ${MB_DB_USER:-metabase}
+      POSTGRES_PASSWORD: ${MB_DB_PASS:-metabase_secret}
+    volumes:
+      - metabase_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MB_DB_USER:-metabase} -d ${MB_DB_DBNAME:-metabase}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - analytics_net
+
+  # ─────────────────────────────────────────────
+  # Metabase – BI & analytics UI
+  # ─────────────────────────────────────────────
+  metabase:
+    build:
+      context: ./metabase
+      dockerfile: Dockerfile
+      args:
+        METABASE_VERSION: ${METABASE_VERSION:-v0.52.5}
+        CLICKHOUSE_DRIVER_VERSION: ${CLICKHOUSE_DRIVER_VERSION:-1.5.0}
+    container_name: analytics_metabase
+    restart: unless-stopped
+    ports:
+      - "${METABASE_PORT:-3000}:3000"
+    depends_on:
+      metabase_db:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: ${MB_DB_DBNAME:-metabase}
+      MB_DB_PORT: 5432
+      MB_DB_USER: ${MB_DB_USER:-metabase}
+      MB_DB_PASS: ${MB_DB_PASS:-metabase_secret}
+      MB_DB_HOST: metabase_db
+      MB_SITE_URL: ${MB_SITE_URL:-http://localhost:3000}
+      MB_SITE_NAME: ${MB_SITE_NAME:-Analytics Platform}
+      MB_EMAIL_FROM_ADDRESS: ${MB_EMAIL_FROM_ADDRESS:-analytics@example.com}
+      JAVA_OPTS: >-
+        -Xmx${MB_JAVA_MAX_MEM:-2g}
+        -Xms${MB_JAVA_MIN_MEM:-512m}
+    volumes:
+      - metabase_plugins:/plugins
+    networks:
+      - analytics_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  clickhouse_data:
+    driver: local
+  clickhouse_logs:
+    driver: local
+  metabase_db_data:
+    driver: local
+  metabase_plugins:
+    driver: local
+
+networks:
+  analytics_net:
+    driver: bridge
+    name: analytics_network

@@ -1,0 +1,4 @@
+.env
+backups/
+clickhouse/data/
+clickhouse/logs/

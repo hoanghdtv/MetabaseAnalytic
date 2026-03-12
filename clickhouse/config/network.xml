@@ -1,0 +1,46 @@
+<clickhouse>
+    <!-- Allow queries from outside Docker network -->
+    <listen_host>0.0.0.0</listen_host>
+
+    <!-- HTTP interface settings -->
+    <http_port>8123</http_port>
+    <tcp_port>9000</tcp_port>
+
+    <!-- Logging -->
+    <logger>
+        <level>warning</level>
+        <log>/var/log/clickhouse-server/clickhouse-server.log</log>
+        <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
+        <size>1000M</size>
+        <count>3</count>
+    </logger>
+
+    <!-- Timezone -->
+    <timezone>UTC</timezone>
+
+    <!-- Max memory usage (adjust to your server RAM) -->
+    <max_server_memory_usage_to_ram_ratio>0.8</max_server_memory_usage_to_ram_ratio>
+
+    <!-- Mark cache size (256 MB) -->
+    <mark_cache_size>268435456</mark_cache_size>
+
+    <!-- Allow cross-origin requests (useful for direct ClickHouse Play) -->
+    <http_options_response>
+        <header>
+            <name>Access-Control-Allow-Origin</name>
+            <value>*</value>
+        </header>
+        <header>
+            <name>Access-Control-Allow-Headers</name>
+            <value>origin, x-requested-with, x-clickhouse-user, x-clickhouse-key, x-clickhouse-format</value>
+        </header>
+        <header>
+            <name>Access-Control-Allow-Methods</name>
+            <value>POST, GET, OPTIONS</value>
+        </header>
+        <header>
+            <name>Access-Control-Max-Age</name>
+            <value>86400</value>
+        </header>
+    </http_options_response>
+</clickhouse>
