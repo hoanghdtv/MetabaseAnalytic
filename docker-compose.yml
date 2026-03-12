@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # ─────────────────────────────────────────────
   # ClickHouse – OLAP database
@@ -88,8 +86,6 @@ services:
       JAVA_OPTS: >-
         -Xmx${MB_JAVA_MAX_MEM:-2g}
         -Xms${MB_JAVA_MIN_MEM:-512m}
-    volumes:
-      - metabase_plugins:/plugins
     networks:
       - analytics_net
     healthcheck:
@@ -105,8 +101,6 @@ volumes:
   clickhouse_logs:
     driver: local
   metabase_db_data:
-    driver: local
-  metabase_plugins:
     driver: local
 
 networks:
