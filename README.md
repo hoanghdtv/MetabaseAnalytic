@@ -239,6 +239,55 @@ docker compose up -d metabase
 - [ ] Thiết lập backup định kỳ (`cron ./scripts/backup.sh`)
 - [ ] Cân nhắc tăng TTL hoặc dùng S3-backed storage cho ClickHouse khi dữ liệu lớn
 
+## Redis Streams ingestion (ví dụ sử dụng `scripts/redis_consumer.py`)
+
+Nếu bạn muốn dùng Redis Streams làm gateway nhẹ để buffer và decouple producers khỏi ClickHouse,
+repo đã bao gồm một consumer mẫu `scripts/redis_consumer.py` (đơn giản, dependency-light) để đọc
+từ stream và ghi batch vào ClickHouse qua HTTP.
+
+Các bước nhanh để thử:
+
+1) Cài dependencies (ví dụ môi trường dev):
+
+```bash
+pip install redis requests
+```
+
+2) (Tùy chọn) Tạo consumer group (chỉ cần làm 1 lần):
+
+```bash
+redis-cli -h <redis-host> -p <redis-port> XGROUP CREATE events_stream ch_group $ MKSTREAM
+```
+
+3) Chạy consumer (ví dụ trong Docker network của compose):
+
+```bash
+python3 scripts/redis_consumer.py \
+  --redis-host redis --redis-port 6379 \
+  --stream events_stream --group ch_group --consumer consumer-1 \
+  --clickhouse http://clickhouse:8123 --clickhouse-table analytics.events --gzip
+```
+
+4) Gửi test event vào stream (dùng `redis-cli`):
+
+```bash
+redis-cli -h <redis-host> -p <redis-port> XADD events_stream MAXLEN ~ 1000000 * payload '{"event_id":"evt1","user_id":"u1","event_type":"click","ts":"2026-03-13 12:00:00","properties":{"x":1}}'
+```
+
+5) Kiểm tra ClickHouse:
+
+```bash
+./scripts/clickhouse-query.sh "SELECT count() FROM analytics.events WHERE event_id='evt1'"
+```
+
+Ghi chú vận hành:
+- Consumer ack messages (XACK) chỉ khi insert vào ClickHouse thành công. Nếu consumer chết, bạn có thể
+  reclaim messages từ PEL bằng `XCLAIM`.
+- Redis Streams là in-memory-first — bật AOF persistence nếu bạn cần durability; dùng `MAXLEN` / `XTRIM`
+  để hạn chế growth.
+- Đây là giải pháp lightweight; nếu bạn cần retention lớn, multi-datacenter replication, hoặc ecosystem
+  connectors thì Kafka/Redpanda vẫn là lựa chọn tốt hơn.
+
 ## License
 
 MIT
